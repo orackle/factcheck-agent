@@ -1,0 +1,10 @@
+{"claim": "The Eiffel Tower is taller than the Statue of Liberty", "expected_verdict": "supported"}
+{"claim": "The Great Wall of China is visible from space with the naked eye", "expected_verdict": "refuted"}
+{"claim": "Python was created by Guido van Rossum", "expected_verdict": "supported"}
+{"claim": "Goldfish have a memory span of only three seconds", "expected_verdict": "refuted"}
+{"claim": "The Wright brothers made the first powered flight in 1903", "expected_verdict": "supported"}
+{"claim": "Napoleon Bonaparte was unusually short for his era", "expected_verdict": "refuted"}
+{"claim": "Mount Everest is the tallest mountain above sea level on Earth", "expected_verdict": "supported"}
+{"claim": "Humans only use 10 percent of their brains", "expected_verdict": "refuted"}
+{"claim": "The Amazon rainforest produces roughly 20 percent of the world's oxygen", "expected_verdict": "mixed"}
+{"claim": "Lightning never strikes the same place twice", "expected_verdict": "refuted"}
