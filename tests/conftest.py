@@ -56,4 +56,5 @@ def settings() -> Settings:
         fetch_timeout_seconds=5.0,
         max_doc_chars=6000,
         request_timeout_seconds=30.0,
+        llm_max_output_tokens=512,
     )

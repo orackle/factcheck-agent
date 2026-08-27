@@ -38,6 +38,7 @@ class Settings:
     fetch_timeout_seconds: float
     max_doc_chars: int
     request_timeout_seconds: float
+    llm_max_output_tokens: int
 
 
 def load_settings() -> Settings:
@@ -53,6 +54,7 @@ def load_settings() -> Settings:
         results_per_query=int(_env("RESULTS_PER_QUERY", "4") or 4),
         max_docs_to_fetch=int(_env("MAX_DOCS_TO_FETCH", "5") or 5),
         fetch_timeout_seconds=float(_env("FETCH_TIMEOUT_SECONDS", "10") or 10),
-        max_doc_chars=int(_env("MAX_DOC_CHARS", "6000") or 6000),
+        max_doc_chars=int(_env("MAX_DOC_CHARS", "3000") or 3000),
         request_timeout_seconds=float(_env("LLM_TIMEOUT_SECONDS", "60") or 60),
+        llm_max_output_tokens=int(_env("LLM_MAX_OUTPUT_TOKENS", "512") or 512),
     )

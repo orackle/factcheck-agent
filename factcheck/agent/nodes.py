@@ -55,7 +55,14 @@ _SYNTHESIZE_SYSTEM = (
     "contradict it, 'mixed' if sources disagree, and 'unverified' if the "
     "evidence is too thin either way. Cite specific sources by URL with the "
     "quote that backs each citation. Note any contradictions between "
-    "sources explicitly — do not paper over disagreement."
+    "sources explicitly — do not paper over disagreement.\n\n"
+    "The 'verdict' field and your 'summary' text must agree with each other "
+    "and with the stance of the evidence you cite. Before answering, check: "
+    "if the evidence is labeled 'refutes' the claim, the verdict must be "
+    "'refuted', not 'supported' — do not confuse 'the evidence is real and "
+    "well-sourced' with 'the evidence supports the claim being true'. Those "
+    "are independent: strong evidence can point either for or against the "
+    "claim."
 )
 
 
@@ -63,7 +70,11 @@ def build_plan_node(llm):
     def plan_node(state: GraphState) -> dict:
         try:
             result = call_structured(
-                llm, _PLAN_SYSTEM, f"Claim: {state['claim']}", PlanOutput
+                llm,
+                _PLAN_SYSTEM,
+                f"Claim: {state['claim']}",
+                PlanOutput,
+                example={"queries": ["first specific search query", "second specific search query"]},
             )
             queries = result.queries
         except LLMError as e:
@@ -147,6 +158,11 @@ def build_extract_node(llm):
                     _EXTRACT_SYSTEM,
                     prompt,
                     _ExtractionOutput,
+                    example={
+                        "quote": "an exact sentence copied from the page text above",
+                        "stance": "supports",
+                        "relevance": 0.8,
+                    },
                 )
             except LLMError as e:
                 trace.append(f"extract: {doc.url} failed ({e})")
@@ -184,7 +200,17 @@ def build_reflect_node(llm):
         prompt = f"Claim: {state['claim']}\n\nEvidence so far:\n{evidence_summary}"
 
         try:
-            reflection = call_structured(llm, _REFLECT_SYSTEM, prompt, ReflectionOutput)
+            reflection = call_structured(
+                llm,
+                _REFLECT_SYSTEM,
+                prompt,
+                ReflectionOutput,
+                example={
+                    "sufficient": False,
+                    "reasoning": "one sentence explaining what's missing or why it's enough",
+                    "follow_up_queries": ["a more targeted search query"],
+                },
+            )
         except LLMError as e:
             return {
                 "iterations": iterations,
@@ -211,7 +237,21 @@ def build_synthesize_node(llm):
         prompt = f"Claim: {state['claim']}\n\nEvidence gathered:\n{evidence_block}"
 
         try:
-            synthesis = call_structured(llm, _SYNTHESIZE_SYSTEM, prompt, SynthesisOutput)
+            synthesis = call_structured(
+                llm,
+                _SYNTHESIZE_SYSTEM,
+                prompt,
+                SynthesisOutput,
+                example={
+                    "verdict": "supported",
+                    "confidence": 0.75,
+                    "summary": "one or two sentences giving the final verdict and why",
+                    "citations": [
+                        {"source_url": "https://example.com/article", "quote": "the exact quote backing this"}
+                    ],
+                    "contradictions": [],
+                },
+            )
         except LLMError as e:
             from factcheck.schemas import Verdict
 

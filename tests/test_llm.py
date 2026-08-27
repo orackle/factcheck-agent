@@ -1,14 +1,37 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 from pydantic import BaseModel
 
-from factcheck.llm import LLMError, call_structured
+from factcheck.llm import LLMError, _extract_json, call_structured
 from tests.conftest import FakeLLM
 
 
 class Toy(BaseModel):
     value: int
+
+
+def test_extract_json_ignores_trailing_schema_echo():
+    # Reproduces a real failure seen with a small local model: it answered
+    # correctly, then echoed the schema hint from the prompt right after.
+    # A greedy `\{.*\}` regex spans first `{` to *last* `}` and swallows
+    # both into one invalid blob — the balanced-brace scan must not.
+    raw = (
+        '{"value": 7}\n\n'
+        'Note: this matches the schema below:\n'
+        '{"$defs": {"Toy": {"type": "object"}}, "properties": {"value": {"type": "integer"}}}'
+    )
+    assert json.loads(_extract_json(raw)) == {"value": 7}
+
+
+def test_extract_json_handles_nested_braces_and_string_content():
+    raw = '{"value": 1, "note": "a {literal brace} inside a string"}'
+    assert json.loads(_extract_json(raw)) == {
+        "value": 1,
+        "note": "a {literal brace} inside a string",
+    }
 
 
 def test_call_structured_parses_clean_json():
