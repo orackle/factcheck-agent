@@ -8,11 +8,16 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 try:
     from dotenv import load_dotenv
 
-    load_dotenv()
+    # Anchored to this file's location, not the process's current working
+    # directory: `load_dotenv()` with no path only searches upward from CWD,
+    # which silently finds nothing if the process is launched (e.g. by
+    # uvicorn, or a task runner) from outside this project's directory.
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 except ImportError:
     pass  # python-dotenv is optional; env vars can be set any other way
 

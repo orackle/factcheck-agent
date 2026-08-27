@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fact-Check Agent</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:ital,wght@0,500;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F1EFE6;
+    --card-bg: #FBFAF4;
+    --ink: #171A1F;
+    --ink-soft: #4B4E52;
+    --ink-faint: #8A8C86;
+    --line: rgba(23,26,31,0.14);
+    --blue: #24507A;
+    --orange: #D65A2C;
+    --green: #2F7D5B;
+    --red: #B94A3D;
+    --amber: #B8862E;
+    --grey: #8A8C86;
+    --font-display: 'IBM Plex Serif', Georgia, serif;
+    --font-body: 'IBM Plex Sans', -apple-system, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10141C;
+      --card-bg: #171C26;
+      --ink: #ECE8DC;
+      --ink-soft: #B7B4A8;
+      --ink-faint: #74766F;
+      --line: rgba(236,232,220,0.14);
+      --blue: #7FA9CE;
+      --orange: #F0895A;
+      --green: #5EBF93;
+      --red: #E08770;
+      --amber: #E0B45C;
+      --grey: #74766F;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--font-body); line-height: 1.6;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 48px 24px 100px; }
+  header { margin-bottom: 8px; }
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--blue); display: flex; align-items: center; gap: 10px;
+  }
+  .eyebrow::before { content: ""; width: 20px; height: 1px; background: var(--blue); }
+  h1 { font-family: var(--font-display); font-weight: 500; font-size: clamp(28px, 5vw, 40px); margin: 14px 0 8px; }
+  .lede { color: var(--ink-soft); max-width: 56ch; margin: 0 0 36px; }
+
+  form { display: flex; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  input[type=text] {
+    flex: 1 1 320px; font-family: var(--font-body); font-size: 15px;
+    padding: 13px 16px; border: 1px solid var(--line); border-radius: 3px;
+    background: var(--card-bg); color: var(--ink);
+  }
+  input[type=text]:focus { outline: 2px solid var(--orange); outline-offset: 1px; }
+  button {
+    font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.03em;
+    padding: 13px 22px; border-radius: 3px; border: 1px solid var(--ink);
+    background: var(--ink); color: var(--bg); cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: var(--orange); border-color: var(--orange); }
+  button:disabled { opacity: 0.5; cursor: default; }
+
+  .hint { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-faint); margin: 0 0 32px; }
+
+  .status {
+    display: none; align-items: center; gap: 12px; font-family: var(--font-mono);
+    font-size: 13px; color: var(--ink-soft); padding: 18px 0; border-top: 1px solid var(--line);
+  }
+  .status.active { display: flex; }
+  .spinner {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid var(--line); border-top-color: var(--orange);
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error {
+    display: none; border: 1px solid var(--red); color: var(--red);
+    padding: 14px 16px; border-radius: 3px; font-size: 14px; margin-top: 20px;
+  }
+  .error.active { display: block; }
+
+  .result { display: none; margin-top: 28px; border-top: 1px solid var(--line); padding-top: 28px; }
+  .result.active { display: block; }
+
+  .verdict-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+  .badge {
+    font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 6px 14px; border-radius: 3px; color: #fff;
+  }
+  .badge.supported { background: var(--green); }
+  .badge.refuted { background: var(--red); }
+  .badge.mixed { background: var(--amber); }
+  .badge.unverified { background: var(--grey); }
+  .confidence { font-family: var(--font-mono); font-size: 13px; color: var(--ink-faint); }
+
+  .summary { font-size: 17px; margin: 0 0 26px; max-width: 62ch; }
+
+  h3 {
+    font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 500; margin: 26px 0 12px;
+  }
+  .citation { border: 1px solid var(--line); border-radius: 3px; padding: 14px 16px; margin-bottom: 10px; background: var(--card-bg); }
+  .citation a { color: var(--blue); font-family: var(--font-mono); font-size: 12.5px; word-break: break-all; text-decoration: none; }
+  .citation a:hover { color: var(--orange); }
+  .citation .quote { margin-top: 6px; font-style: italic; color: var(--ink-soft); font-size: 14.5px; }
+
+  .contradiction { font-size: 14.5px; color: var(--ink-soft); padding-left: 16px; position: relative; margin-bottom: 6px; }
+  .contradiction::before { content: "—"; position: absolute; left: 0; color: var(--orange); }
+
+  .meta { font-family: var(--font-mono); font-size: 12px; color: var(--ink-faint); margin-top: 24px; }
+
+  details { margin-top: 20px; }
+  summary { font-family: var(--font-mono); font-size: 12px; color: var(--ink-faint); cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; }
+  .trace { font-family: var(--font-mono); font-size: 12px; color: var(--ink-soft); white-space: pre-wrap; background: var(--card-bg); border: 1px solid var(--line); border-radius: 3px; padding: 14px 16px; margin-top: 10px; }
+
+  footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line); font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  footer a { color: inherit; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Agentic AI · In Progress</p>
+    <h1>Web Research &amp; Fact-Check Agent</h1>
+    <p class="lede">Plans search queries, reads live sources, decides if it has enough evidence — looping back to search again if not — then commits to a cited verdict. No single-call guessing.</p>
+  </header>
+
+  <form id="form">
+    <input type="text" id="claim" placeholder="Enter a claim to verify…" required>
+    <button type="submit" id="submit-btn">Verify</button>
+  </form>
+  <p class="hint">Runs a real multi-step agent against live search + a local model — can take 1–3 minutes.</p>
+
+  <div class="status" id="status">
+    <div class="spinner"></div>
+    <span id="status-text">Planning search queries…</span>
+  </div>
+
+  <div class="error" id="error"></div>
+
+  <div class="result" id="result">
+    <div class="verdict-row">
+      <span class="badge" id="verdict-badge"></span>
+      <span class="confidence" id="confidence"></span>
+    </div>
+    <p class="summary" id="summary"></p>
+
+    <div id="citations-section" style="display:none">
+      <h3>Sources</h3>
+      <div id="citations"></div>
+    </div>
+
+    <div id="contradictions-section" style="display:none">
+      <h3>Contradictions found</h3>
+      <div id="contradictions"></div>
+    </div>
+
+    <p class="meta" id="meta"></p>
+
+    <details>
+      <summary>Show agent trace</summary>
+      <div class="trace" id="trace"></div>
+    </details>
+  </div>
+
+  <footer>
+    <span>Fact-Check Agent · v0.1</span>
+    <a href="/docs" target="_blank" rel="noopener">API docs →</a>
+  </footer>
+</div>
+
+<script>
+const form = document.getElementById('form');
+const claimInput = document.getElementById('claim');
+const submitBtn = document.getElementById('submit-btn');
+const statusEl = document.getElementById('status');
+const statusText = document.getElementById('status-text');
+const errorEl = document.getElementById('error');
+const resultEl = document.getElementById('result');
+
+const STATUS_MESSAGES = [
+  'Planning search queries…',
+  'Searching the web…',
+  'Reading sources…',
+  'Weighing the evidence…',
+  'Deciding if more research is needed…',
+  'Writing the verdict…',
+];
+
+let statusInterval = null;
+
+function cycleStatus() {
+  let i = 0;
+  statusText.textContent = STATUS_MESSAGES[0];
+  return setInterval(() => {
+    i = (i + 1) % STATUS_MESSAGES.length;
+    statusText.textContent = STATUS_MESSAGES[i];
+  }, 12000);
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const claim = claimInput.value.trim();
+  if (!claim) return;
+
+  submitBtn.disabled = true;
+  errorEl.classList.remove('active');
+  resultEl.classList.remove('active');
+  statusEl.classList.add('active');
+  statusInterval = cycleStatus();
+
+  const startedAt = Date.now();
+
+  try {
+    const res = await fetch('/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claim }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail || `Request failed (${res.status})`);
+    }
+
+    const data = await res.json();
+    renderResult(data, (Date.now() - startedAt) / 1000);
+  } catch (err) {
+    errorEl.textContent = err.message || 'Something went wrong.';
+    errorEl.classList.add('active');
+  } finally {
+    clearInterval(statusInterval);
+    statusEl.classList.remove('active');
+    submitBtn.disabled = false;
+  }
+});
+
+function renderResult(data, elapsedSeconds) {
+  const badge = document.getElementById('verdict-badge');
+  badge.textContent = data.verdict;
+  badge.className = 'badge ' + data.verdict;
+
+  document.getElementById('confidence').textContent =
+    `${Math.round(data.confidence * 100)}% confidence`;
+  document.getElementById('summary').textContent = data.summary;
+
+  const citationsSection = document.getElementById('citations-section');
+  const citationsEl = document.getElementById('citations');
+  citationsEl.innerHTML = '';
+  if (data.citations && data.citations.length) {
+    citationsSection.style.display = '';
+    data.citations.forEach((c) => {
+      const div = document.createElement('div');
+      div.className = 'citation';
+      const a = document.createElement('a');
+      a.href = c.source_url; a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = c.source_url;
+      const q = document.createElement('div');
+      q.className = 'quote';
+      q.textContent = '"' + c.quote + '"';
+      div.appendChild(a); div.appendChild(q);
+      citationsEl.appendChild(div);
+    });
+  } else {
+    citationsSection.style.display = 'none';
+  }
+
+  const contraSection = document.getElementById('contradictions-section');
+  const contraEl = document.getElementById('contradictions');
+  contraEl.innerHTML = '';
+  if (data.contradictions && data.contradictions.length) {
+    contraSection.style.display = '';
+    data.contradictions.forEach((c) => {
+      const div = document.createElement('div');
+      div.className = 'contradiction';
+      div.textContent = c;
+      contraEl.appendChild(div);
+    });
+  } else {
+    contraSection.style.display = 'none';
+  }
+
+  document.getElementById('meta').textContent =
+    `${data.sources_consulted} source(s) consulted · ${data.iterations} search iteration(s) · ${elapsedSeconds.toFixed(0)}s total`;
+
+  document.getElementById('trace').textContent = (data.trace || []).join('\n');
+
+  resultEl.classList.add('active');
+}
+</script>
+</body>
+</html>

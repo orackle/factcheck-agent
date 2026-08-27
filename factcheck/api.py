@@ -10,7 +10,10 @@ called out in the README rather than half-implemented here.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from factcheck.agent.graph import run_fact_check
@@ -44,3 +47,9 @@ def verify(request: VerifyRequest) -> FactCheckResult:
         return run_fact_check(request.claim, llm, search_provider, settings)
     except (LLMError, SearchError) as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
+
+
+# Mounted last and at "/" so it only catches requests that didn't match an
+# API route above — the frontend for manually trying the agent out.
+_STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+app.mount("/", StaticFiles(directory=_STATIC_DIR, html=True), name="static")

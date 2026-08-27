@@ -66,6 +66,54 @@ the agent searched, fetched, and reasoned at each step.
   stubborn or unanswerable claim fails closed (verdict: `unverified`) instead
   of looping forever or burning unbounded API spend.
 
+## Project structure
+
+```
+factcheck/
+  agent/
+    state.py      # the graph's shared TypedDict state
+    nodes.py      # plan / search / fetch / extract / reflect / synthesize
+    graph.py      # wires nodes into the LangGraph StateGraph + loop edge
+  tools/
+    search.py     # SearchProvider interface: DuckDuckGo (default), Tavily
+    fetch.py      # page download + text extraction
+  llm.py          # provider-agnostic chat model + JSON-in-prompt parsing
+  config.py       # env-driven settings, .env loading
+  schemas.py      # every Pydantic contract used across the codebase
+  cli.py          # python -m factcheck.cli "<claim>"
+  api.py          # FastAPI app: /health, /verify, serves static/ at "/"
+static/
+  index.html      # single-page frontend — talks to /verify directly
+eval/
+  dataset.jsonl   # 10 labeled claims for accuracy checks
+  run_eval.py     # runs the agent over the dataset, reports accuracy
+tests/            # 20 tests, fully mocked — see Testing below
+```
+
+## Frontend
+
+`static/index.html` is a single self-contained page (no build step, no
+framework) served by FastAPI at `/` — open it after starting the API and
+you get a text box instead of `curl`:
+
+- submits a claim to `/verify` and shows a rotating status line while the
+  agent works ("Planning search queries…", "Reading sources…", …) since a
+  real run can take 1-3+ minutes depending on the LLM backend
+- renders the verdict as a color-coded badge (supported / refuted / mixed /
+  unverified) with a confidence percentage
+- lists every citation as a clickable source URL plus the exact quote that
+  backs it, and any contradictions found across sources, not just a summary
+  paragraph
+- a collapsible "Show agent trace" section with the same step-by-step log
+  the CLI's `--trace` flag prints — the point of this whole project is that
+  you shouldn't have to trust the verdict blindly, so the reasoning trail is
+  one click away, not hidden
+
+Visually matches the ink/blueprint palette and IBM Plex type used on
+[the portfolio](https://github.com/orackle/portfo) this backs, since the
+intent is to eventually embed or link this directly from that "in progress"
+project card.
+
 ## Setup
 
 ```bash
@@ -96,10 +144,17 @@ python -m factcheck.cli "The Eiffel Tower is taller than the Statue of Liberty"
 python -m factcheck.cli --json --trace "..."   # machine-readable, with full trace
 ```
 
-Or run the API:
+Or run the API + frontend:
 
 ```bash
 uvicorn factcheck.api:app --reload
+```
+
+- `http://localhost:8000/` — the web UI (see Frontend below)
+- `http://localhost:8000/docs` — interactive Swagger UI for `/verify`
+- or hit it directly:
+
+```bash
 curl -X POST localhost:8000/verify -H 'content-type: application/json' \
   -d '{"claim": "The Great Wall of China is visible from space with the naked eye"}'
 ```
@@ -110,11 +165,15 @@ curl -X POST localhost:8000/verify -H 'content-type: application/json' \
 pytest
 ```
 
-The suite (18 tests) mocks every external dependency — no network, no LLM,
+The suite (20 tests) mocks every external dependency — no network, no LLM,
 no API keys required. `tests/test_graph_smoke.py` runs the *actual* compiled
 LangGraph graph end-to-end with a scripted fake LLM, including forcing the
 `reflect -> search` loop to fire once before synthesizing, which is the part
 a pure unit test of individual nodes can't verify.
+
+Passing mocked tests proves the wiring is correct; it doesn't prove a real
+model can actually follow the prompts. That gap — and the two real bugs it
+hid — is covered in "What broke in real runs" below.
 
 ## Evaluation
 
@@ -127,6 +186,40 @@ hand after changing prompts or switching models:
 python -m eval.run_eval
 python -m eval.run_eval --limit 3
 ```
+
+## What broke in real runs (and why it's worth reading)
+
+Mocked tests catch wiring bugs. They can't catch a real model behaving in
+ways you didn't script into a fake. Two failures only showed up once this
+was actually pointed at live search and a real local model (`llama3.2:3B`
+via Ollama):
+
+1. **Verdict/evidence direction mismatch.** On the claim "goldfish have a
+   3-second memory," the agent correctly found a source stating goldfish
+   retain memories for months, correctly tagged that evidence
+   `stance=refutes`, and wrote a summary that literally said *"contradicts
+   the claim"* — then filled the `verdict` field with `supported` anyway.
+   Evidence gathering worked perfectly; the model just flipped the final
+   label. Fixed by making the synthesis prompt explicitly separate "the
+   evidence is real and well-sourced" from "the evidence supports the claim
+   being true" — those are independent, and small models conflate them.
+
+2. **Schema-echo instead of an answer.** Under thin evidence, the model
+   would sometimes respond with the JSON *Schema* it was given (including
+   `$defs`) instead of an actual instance of it — a `\{.*\}` regex spanning
+   first `{` to *last* `}` then concatenated both into one invalid blob.
+   Fixed two ways: a proper balanced-brace scanner in `_extract_json`
+   (stops at the *matching* close brace, not the last one anywhere in the
+   response), and replacing the raw JSON-Schema dump with a concrete worked
+   example per call site — a filled-in example is a much easier target for
+   a 3B model than an abstract meta-schema, which it would otherwise
+   sometimes parrot back verbatim.
+
+Both were confirmed fixed by re-running the exact same claims, not just by
+reasoning about the code — see the commit history for the before/after
+transcripts. This is also why `MAX_SEARCH_ITERATIONS`, output tokens, and
+document size are capped by default: correctness on a 3B model degrades
+with the length and abstractness of what you ask it to produce in one shot.
 
 ## Known limitations / roadmap
 
