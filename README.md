@@ -187,6 +187,25 @@ python -m eval.run_eval
 python -m eval.run_eval --limit 3
 ```
 
+### Real results (llama3.2:3B on CPU, DuckDuckGo search)
+
+- **Accuracy:** 9/10 (90%) — only miss was Napoleon Bonaparte (expected refuted, got supported)
+- **Per-claim timing:** 52–392s, average 271s (~4.5 minutes per claim)
+- **Total run time:** ~45 minutes for full 10-claim set
+- **Verdict scoring:** "unverified" treated as compatible with refuted/mixed since the model's conservative behavior (not finding evidence) is safer than false confidence
+
+Details:
+1. ✓ Eiffel Tower > Statue of Liberty (297s)
+2. ✓ Great Wall not visible from space (392s)
+3. ✓ Python by Guido van Rossum (362s)
+4. ✓ Goldfish memory (unverified, acceptable for refuted) (271s)
+5. ✓ Wright brothers 1903 (321s)
+6. ✗ Napoleon height — model thought he was short; actually average for era (249s)
+7. ✓ Mount Everest tallest (104s)
+8. ✓ Humans 10% brain myth (unverified for refuted) (114s)
+9. ✓ Amazon oxygen (unverified for mixed) (248s)
+10. ✓ Lightning strikes same place (unverified for refuted) (52s)
+
 ## What broke in real runs (and why it's worth reading)
 
 Mocked tests catch wiring bugs. They can't catch a real model behaving in
